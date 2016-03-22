@@ -2,26 +2,52 @@
     'user strict';
 
     angular.module('app', [])
-        .controller('LoginCtrl', ['$scope', '$http',
-            function($scope, $http) {
-                var self = this;
-                $http.get('/api/login').success(function(resp) {
-                    if (resp.username)
-                        self.user = resp;
-                })
-                self.login = function(user) {
-                    $http.post('/api/login', user).then(function(data) {
-                        if (data.data.username)
-                            self.user = data.data;
-                        else self.msg = data.data.msg;
-                        $scope.nu = undefined;
-                    });
+        .factory('login', function($http) {
+            var loginInfo = {};
+            var changes = [];
+            var change = function(data) {
+                changes.forEach(function(fn) {
+                    fn(data);
+                });
+                loginInfo.info = data;
+                return loginInfo;
+            }
+            return {
+                login: function(user) {
+                    return $http.post('/api/login', user).then(change)
+                },
+                logout: function() {
+                    return $http.delete('/api/login').then(change)
+                },
+                isLogin: function() {
+                    return $http.get('/api/login').then(change)
+                },
+                loginInfo: loginInfo,
+                onchange: function(fn) {
+                    changes.push(fn);
                 }
-                self.logout = function() {
-                    $http.delete('/api/login').success(function() {
-                        self.user = undefined
-                    })
+            };
+        })
+        .controller('MainCtrl', function(login, $scope) {
+            login.isLogin();
+            $scope.logout = function() {
+                login.logout();
+            };
+            login.onchange(function(data) {
+                $scope.loginInfo = data.data;
+            });
+        })
+        .controller('LoginCtrl', ['login', '$scope',
+            function(login, $scope) {
+                var self = this;
+                login.isLogin();
+                //self.login = login.login.bind(login);
+                self.login = function(user) {
+                    login.login(user);
                 };
+                login.onchange(function(data) {
+                    self.loginInfo = data.data;
+                });
             }
         ]);
 })();
